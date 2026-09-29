@@ -107,7 +107,9 @@ def remove_unnecessary_columns(df):
         "shipping_date_(DateOrders)",
 
         # Order completion information
-        "Order_Status"
+        "Order_Status",
+        "Days_for_shipping_(real)",
+        "Days_for_shipment_(scheduled)",
     ]
 
     existing_columns = [
