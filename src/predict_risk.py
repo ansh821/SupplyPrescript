@@ -1,60 +1,62 @@
+import os
 import joblib
 import pandas as pd
 
 
 # ============================================================
-# SUPPLYPRESCRIPT - RISK PREDICTION
+# SUPPLYPRESCRIPT - FINAL XGBOOST RISK PREDICTION
 # ============================================================
 
-print("=" * 60)
-print("SUPPLYPRESCRIPT RISK PREDICTION")
-print("=" * 60)
-
-
-# ------------------------------------------------------------
-# 1. LOAD MODEL
-# ------------------------------------------------------------
-
-MODEL_PATH = "models/supplyprescript_random_forest.joblib"
+MODEL_PATH = "models/supplyprescript_xgboost.joblib"
 TEST_PATH = "data/model_grouped/test.csv"
+OUTPUT_PATH = "data/model_grouped/risk_predictions.csv"
+
+
+print("=" * 70)
+print("SUPPLYPRESCRIPT - XGBOOST RISK PREDICTION")
+print("=" * 70)
+
+
+# ------------------------------------------------------------
+# 1. Load final XGBoost model
+# ------------------------------------------------------------
+
+print("\n[1] Loading XGBoost model...")
 
 model = joblib.load(MODEL_PATH)
-test_df = pd.read_csv(TEST_PATH)
 
-print("\nModel and test data loaded successfully.")
-
-
-# ------------------------------------------------------------
-# 2. TARGET
-# ------------------------------------------------------------
-
-TARGET = "Late_delivery_risk"
-
-X_test = test_df.drop(columns=[TARGET])
+print("XGBoost model loaded successfully.")
 
 
 # ------------------------------------------------------------
-# 3. PREDICT
+# 2. Load grouped test data
 # ------------------------------------------------------------
 
-predicted_class = model.predict(X_test)
+print("\n[2] Loading grouped test data...")
 
-risk_probability = model.predict_proba(X_test)[:, 1]
+df = pd.read_csv(TEST_PATH)
 
+target_column = "Late_delivery_risk"
 
-# ------------------------------------------------------------
-# 4. CREATE RESULTS
-# ------------------------------------------------------------
+X = df.drop(columns=[target_column])
 
-results = test_df.copy()
-
-results["Predicted_Risk"] = predicted_class
-
-results["Risk_Probability"] = risk_probability
+print(f"Dataset shape: {df.shape}")
+print(f"Feature shape: {X.shape}")
 
 
 # ------------------------------------------------------------
-# 5. RISK LEVEL
+# 3. Generate predictions
+# ------------------------------------------------------------
+
+print("\n[3] Generating predictions...")
+
+predictions = model.predict(X)
+
+probabilities = model.predict_proba(X)[:, 1]
+
+
+# ------------------------------------------------------------
+# 4. Convert probability into risk level
 # ------------------------------------------------------------
 
 def get_risk_level(probability):
@@ -69,106 +71,97 @@ def get_risk_level(probability):
         return "LOW"
 
 
-results["Risk_Level"] = results["Risk_Probability"].apply(
-    get_risk_level
+risk_levels = [
+    get_risk_level(probability)
+    for probability in probabilities
+]
+
+
+# ------------------------------------------------------------
+# 5. Add predictions to dataset
+# ------------------------------------------------------------
+
+df["Predicted_Late_Delivery_Risk"] = predictions
+
+df["Risk_Probability"] = probabilities
+
+df["Risk_Level"] = risk_levels
+
+
+# ------------------------------------------------------------
+# 6. Save predictions
+# ------------------------------------------------------------
+
+os.makedirs(
+    os.path.dirname(OUTPUT_PATH),
+    exist_ok=True
+)
+
+df.to_csv(
+    OUTPUT_PATH,
+    index=False
 )
 
 
 # ------------------------------------------------------------
-# 6. PRESCRIPTION
+# 7. Display summary
 # ------------------------------------------------------------
 
-def generate_prescription(row):
+print("\n" + "=" * 70)
+print("RISK LEVEL SUMMARY")
+print("=" * 70)
 
-    risk = row["Risk_Level"]
-
-    shipping_mode = row.get("Shipping_Mode", "")
-
-    order_region = row.get("Order_Region", "")
-
-    if risk == "HIGH":
-
-        if shipping_mode == "Standard Class":
-            return (
-                "Consider upgrading shipping priority "
-                "and closely monitor fulfillment."
-            )
-
-        return (
-            "Prioritize fulfillment and monitor shipment "
-            "status closely."
-        )
-
-    elif risk == "MEDIUM":
-
-        return (
-            "Monitor fulfillment progress and review "
-            "shipment scheduling."
-        )
-
-    else:
-
-        return (
-            "Continue normal fulfillment monitoring."
-        )
-
-
-results["Recommended_Action"] = results.apply(
-    generate_prescription,
-    axis=1
+print(
+    df["Risk_Level"]
+    .value_counts()
+    .to_string()
 )
 
 
 # ------------------------------------------------------------
-# 7. DISPLAY SAMPLE RESULTS
+# 8. Display probability statistics
 # ------------------------------------------------------------
 
-print("\n" + "=" * 60)
-print("SAMPLE RISK PREDICTIONS")
-print("=" * 60)
+print("\n" + "=" * 70)
+print("RISK PROBABILITY STATISTICS")
+print("=" * 70)
 
-display_columns = [
+print(
+    df["Risk_Probability"]
+    .describe()
+    .to_string()
+)
+
+
+# ------------------------------------------------------------
+# 9. Display sample predictions
+# ------------------------------------------------------------
+
+print("\n" + "=" * 70)
+print("SAMPLE XGBOOST PREDICTIONS")
+print("=" * 70)
+
+sample_columns = [
+    target_column,
+    "Predicted_Late_Delivery_Risk",
     "Risk_Probability",
-    "Risk_Level",
-    "Recommended_Action"
+    "Risk_Level"
 ]
 
 print(
-    results[display_columns]
+    df[sample_columns]
     .head(10)
     .to_string(index=False)
 )
 
 
 # ------------------------------------------------------------
-# 8. RISK DISTRIBUTION
+# 10. Final status
 # ------------------------------------------------------------
 
-print("\n" + "=" * 60)
-print("RISK DISTRIBUTION")
-print("=" * 60)
+print("\n" + "=" * 70)
+print("XGBOOST RISK PREDICTION COMPLETED")
+print("=" * 70)
 
-print(
-    results["Risk_Level"]
-    .value_counts()
-)
-
-
-# ------------------------------------------------------------
-# 9. SAVE RESULTS
-# ------------------------------------------------------------
-
-OUTPUT_PATH = "data/model_grouped/risk_predictions.csv"
-
-results.to_csv(
-    OUTPUT_PATH,
-    index=False
-)
-
-print("\n" + "=" * 60)
-print("PREDICTIONS SAVED")
-print("=" * 60)
-
-print(f"\nOutput file: {OUTPUT_PATH}")
-
-print("\nRisk prediction completed successfully.")
+print(f"Prediction file:")
+print(OUTPUT_PATH)
