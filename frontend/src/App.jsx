@@ -14,31 +14,131 @@ import "./App.css";
 
 const API_BASE_URL = "http://127.0.0.1:8000";
 
+const initialForm = {
+  Benefit_per_order: 0,
+  Sales_per_customer: 0,
+  Customer_Zipcode: 0,
+  Order_Id: 100000,
+  Order_Item_Discount: 0,
+  Order_Item_Discount_Rate: 0,
+  Order_Item_Product_Price: 0,
+  Order_Item_Profit_Ratio: 0,
+  Order_Item_Quantity: 1,
+  Sales: 0,
+  Order_Item_Total: 0,
+  Order_Profit_Per_Order: 0,
+  Order_Zipcode: 0,
+  Product_Price: 0,
+  order_year: 2017,
+  order_month: 1,
+  order_day: 1,
+  order_day_of_week: 0,
+  order_week: 1,
+
+  Type: "DEBIT",
+  Category_Name: "Sporting Goods",
+  Customer_City: "Caguas",
+  Customer_Country: "Estados Unidos",
+  Customer_Segment: "Consumer",
+  Customer_State: "PR",
+  Department_Name: "Fan Shop",
+  Market: "USCA",
+  Order_City: "Caguas",
+  Order_Country: "Estados Unidos",
+  Order_Region: "Caribbean",
+  Order_State: "PR",
+  Product_Name: "Field & Stream Sportsman 16 Gun Fire Safe",
+  Shipping_Mode: "Standard Class",
+};
+
+const numericFields = [
+  "Benefit_per_order",
+  "Sales_per_customer",
+  "Customer_Zipcode",
+  "Order_Id",
+  "Order_Item_Discount",
+  "Order_Item_Discount_Rate",
+  "Order_Item_Product_Price",
+  "Order_Item_Profit_Ratio",
+  "Order_Item_Quantity",
+  "Sales",
+  "Order_Item_Total",
+  "Order_Profit_Per_Order",
+  "Order_Zipcode",
+  "Product_Price",
+  "order_year",
+  "order_month",
+  "order_day",
+  "order_day_of_week",
+  "order_week",
+];
+
+const categoricalFields = [
+  "Type",
+  "Category_Name",
+  "Customer_City",
+  "Customer_Country",
+  "Customer_Segment",
+  "Customer_State",
+  "Department_Name",
+  "Market",
+  "Order_City",
+  "Order_Country",
+  "Order_Region",
+  "Order_State",
+  "Product_Name",
+  "Shipping_Mode",
+];
+
 function App() {
-  const [orderIndex, setOrderIndex] = useState("2");
+  const [form, setForm] = useState(initialForm);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const checkRisk = async () => {
-    if (!orderIndex.trim()) {
-      setError("Please enter an order index.");
-      return;
-    }
+  const handleChange = (field, value) => {
+    setForm((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
     setLoading(true);
     setError("");
     setResult(null);
 
+    const payload = {};
+
+    numericFields.forEach((field) => {
+      payload[field] = Number(form[field]);
+    });
+
+    categoricalFields.forEach((field) => {
+      payload[field] = form[field];
+    });
+
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/predict/${orderIndex.trim()}`
-      );
+      const response = await fetch(`${API_BASE_URL}/predict`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.detail || "Prediction request failed.");
+        throw new Error(
+          data.detail
+            ? Array.isArray(data.detail)
+              ? data.detail.map((item) => item.msg).join(", ")
+              : data.detail
+            : "Prediction request failed."
+        );
       }
 
       setResult(data);
@@ -52,9 +152,12 @@ function App() {
     }
   };
 
-  const riskClass = result?.risk_level
-    ? result.risk_level.toLowerCase()
-    : "";
+  const updateNumber = (field, value) => {
+    handleChange(field, value);
+  };
+
+  const riskLevel = result?.prediction?.risk_level || "";
+  const riskClass = riskLevel.toLowerCase();
 
   return (
     <div className="app">
@@ -92,9 +195,8 @@ function App() {
 
             <p>
               SupplyPrescript combines machine learning prediction,
-              explainable AI, and operational recommendations to help
-              identify potentially delayed shipments before they become
-              critical.
+              explainable AI, and operational recommendations to identify
+              potentially delayed shipments before they become critical.
             </p>
           </div>
 
@@ -157,49 +259,82 @@ function App() {
             <span className="model-badge">XGBoost Model</span>
           </div>
 
-          <div className="prediction-panel">
-            <div className="input-area">
-              <label htmlFor="orderIndex">Order Index</label>
-
-              <div className="input-row">
-                <input
-                  id="orderIndex"
-                  type="number"
-                  min="0"
-                  value={orderIndex}
-                  onChange={(e) => setOrderIndex(e.target.value)}
-                  placeholder="Enter order index"
-                />
-
-                <button
-                  onClick={checkRisk}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <>
-                      <RefreshCw className="spin" size={18} />
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      <Activity size={18} />
-                      Predict Risk
-                    </>
-                  )}
-                </button>
+          <form className="prediction-panel" onSubmit={handleSubmit}>
+            <div className="form-section">
+              <div className="form-section-title">
+                <h4>Order & Financial Information</h4>
+                <span>Numeric model inputs</span>
               </div>
 
-              <p className="input-help">
-                Enter an index from the grouped test dataset.
-              </p>
+              <div className="form-grid">
+                {numericFields.map((field) => (
+                  <div className="form-field" key={field}>
+                    <label htmlFor={field}>
+                      {field.replaceAll("_", " ")}
+                    </label>
 
-              {error && (
-                <div className="error-message">
-                  <AlertTriangle size={18} />
-                  {error}
-                </div>
-              )}
+                    <input
+                      id={field}
+                      type="number"
+                      step="any"
+                      value={form[field]}
+                      onChange={(e) =>
+                        updateNumber(field, e.target.value)
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
+
+            <div className="form-section">
+              <div className="form-section-title">
+                <h4>Order & Customer Information</h4>
+                <span>Categorical model inputs</span>
+              </div>
+
+              <div className="form-grid">
+                {categoricalFields.map((field) => (
+                  <div className="form-field" key={field}>
+                    <label htmlFor={field}>
+                      {field.replaceAll("_", " ")}
+                    </label>
+
+                    <input
+                      id={field}
+                      type="text"
+                      value={form[field]}
+                      onChange={(e) =>
+                        handleChange(field, e.target.value)
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="form-actions">
+              <button type="submit" disabled={loading}>
+                {loading ? (
+                  <>
+                    <RefreshCw className="spin" size={18} />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <Activity size={18} />
+                    Predict Delivery Risk
+                  </>
+                )}
+              </button>
+            </div>
+
+            {error && (
+              <div className="error-message">
+                <AlertTriangle size={18} />
+                <span>{error}</span>
+              </div>
+            )}
 
             {result && (
               <div className="result-area">
@@ -210,13 +345,13 @@ function App() {
                         PREDICTED RISK
                       </span>
 
-                      <h4>{result.risk_level}</h4>
+                      <h4>{riskLevel}</h4>
                     </div>
 
                     <div className="risk-icon">
-                      {result.risk_level === "HIGH" ? (
+                      {riskLevel === "HIGH" ? (
                         <AlertTriangle size={30} />
-                      ) : result.risk_level === "MEDIUM" ? (
+                      ) : riskLevel === "MEDIUM" ? (
                         <Clock3 size={30} />
                       ) : (
                         <CheckCircle size={30} />
@@ -228,7 +363,10 @@ function App() {
                     <span>Risk Probability</span>
 
                     <strong>
-                      {(result.risk_probability * 100).toFixed(2)}%
+                      {(
+                        result.prediction.risk_probability * 100
+                      ).toFixed(2)}
+                      %
                     </strong>
                   </div>
 
@@ -236,7 +374,7 @@ function App() {
                     <div
                       style={{
                         width: `${Math.min(
-                          result.risk_probability * 100,
+                          result.prediction.risk_probability * 100,
                           100
                         )}%`,
                       }}
@@ -245,77 +383,81 @@ function App() {
                 </div>
 
                 <div className="decision-card">
-                  <span className="result-label">RECOMMENDED DECISION</span>
+                  <span className="result-label">
+                    RECOMMENDED DECISION
+                  </span>
 
                   <div className="decision-row">
                     <div>
                       <span>Priority</span>
-                      <strong>{result.priority}</strong>
+                      <strong>{result.decision.priority}</strong>
                     </div>
 
                     <div>
                       <span>Recommended Action</span>
-                      <strong>{result.recommended_action}</strong>
+                      <strong>
+                        {result.decision.recommended_action}
+                      </strong>
                     </div>
                   </div>
                 </div>
 
-                {result.explanation &&
-                  result.explanation.top_factors && (
-                    <div className="explanation-card">
-                      <div className="explanation-heading">
-                        <div>
-                          <span className="result-label">
-                            EXPLAINABLE AI
-                          </span>
-                          <h4>Why did the model predict this?</h4>
-                        </div>
+                {result.explanation?.top_factors && (
+                  <div className="explanation-card">
+                    <div className="explanation-heading">
+                      <div>
+                        <span className="result-label">
+                          EXPLAINABLE AI
+                        </span>
 
-                        <Sparkles size={22} />
+                        <h4>Why did the model predict this?</h4>
                       </div>
 
-                      <div className="factor-list">
-                        {result.explanation.top_factors.map(
-                          (factor, index) => (
-                            <div
-                              className="factor"
-                              key={`${factor.feature}-${index}`}
-                            >
-                              <div className="factor-number">
-                                {index + 1}
-                              </div>
-
-                              <div className="factor-content">
-                                <strong>{factor.feature}</strong>
-
-                                <span
-                                  className={
-                                    factor.direction === "increases"
-                                      ? "increase"
-                                      : "decrease"
-                                  }
-                                >
-                                  {factor.direction === "increases"
-                                    ? "Increases risk"
-                                    : "Reduces risk"}
-                                </span>
-                              </div>
-
-                              <div className="contribution">
-                                {factor.contribution > 0 ? "+" : ""}
-                                {Number(
-                                  factor.contribution
-                                ).toFixed(4)}
-                              </div>
-                            </div>
-                          )
-                        )}
-                      </div>
+                      <Sparkles size={22} />
                     </div>
-                  )}
+
+                    <div className="factor-list">
+                      {result.explanation.top_factors.map(
+                        (factor, index) => (
+                          <div
+                            className="factor"
+                            key={`${factor.feature}-${index}`}
+                          >
+                            <div className="factor-number">
+                              {index + 1}
+                            </div>
+
+                            <div className="factor-content">
+                              <strong>{factor.feature}</strong>
+
+                              <span
+                                className={
+                                  factor.direction === "increases"
+                                    ? "increase"
+                                    : "decrease"
+                                }
+                              >
+                                {factor.direction === "increases"
+                                  ? "Increases risk"
+                                  : "Reduces risk"}
+                              </span>
+                            </div>
+
+                            <div className="contribution">
+                              {factor.contribution > 0 ? "+" : ""}
+                              {Number(
+                                factor.contribution
+                              ).toFixed(4)}
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
-          </div>
+          </form>
         </section>
 
         <section className="workflow">
@@ -353,7 +495,7 @@ function App() {
               <h4>Explain</h4>
               <p>
                 SHAP identifies the strongest factors influencing the
-                model's decision.
+                model&apos;s decision.
               </p>
             </div>
 
@@ -362,8 +504,8 @@ function App() {
               <CheckCircle size={22} />
               <h4>Prescribe</h4>
               <p>
-                SupplyPrescript converts the prediction into a
-                practical operational action.
+                SupplyPrescript converts the prediction into a practical
+                operational action.
               </p>
             </div>
           </div>
